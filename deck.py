@@ -1,4 +1,4 @@
-from card import Card, SUITS, DENOMINATIONS
+from card import Card, SUITS, DENOMS
 import itertools
 import random
 from collections import deque
@@ -13,7 +13,7 @@ class Deck:
     # Use a new deck of cards
     def initialize_deck(self):
         self.deck = deque(Card(s, d) 
-            for s, d in itertools.product(SUITS, DENOMINATIONS))
+            for s, d in itertools.product(SUITS, DENOMS))
 
     # Shuffle a new deck of cards
     def reset_and_shuffle(self, seed=None):
