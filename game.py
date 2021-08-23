@@ -1,18 +1,22 @@
-from deck import Deck
 from collections import defaultdict, deque
+from deck import Deck
+from hand import Hand
 
 
 class Game:
     def __init__(self):
         self.players = []
+        self.inactive_players = []
         self.dealer_idx = 0
         self.deck = Deck()
-        self.pot = 0
+        self.curr_pot = 0
         self.bb = 2.0
         self.community_cards = []
         self.betting_history = []
         self.history_all_rounds = {}
         self.player_prev_bet = defaultdict(int)
+        self.player_total_bet_this_hand = defaultdict(int)
+        self.player_hand = {}
         self.rounds = [self.preflop, self.flop, self.turn, self.river]
 
     def deal_players(self):
@@ -34,13 +38,15 @@ class Game:
         sb_player.pay_blind(sb)
         self.player_prev_bet[sb_player] = sb
         self.betting_history.append((sb_player.get_id(), "SB", sb))
+        self.player_total_bet_this_hand[sb_player] += sb
 
         bb_player = self.player_at_idx(bb_idx)
         bb_player.pay_blind(bb)
         self.player_prev_bet[bb_player] = bb
         self.betting_history.append((bb_player.get_id(), "BB", bb))
+        self.player_total_bet_this_hand[bb_player] += bb
 
-        self.pot += bb + sb
+        self.curr_pot += bb + sb
 
     def player_at_idx(self, idx):
         return self.players[idx % len(self.players)]
@@ -60,12 +66,14 @@ class Game:
 
     def initialize_hand(self, shuffle=True):
 
-        if self.pot != 0:
+        if self.curr_pot != 0:
             raise Exception(
-                f"Pot is {self.pot}, which should be 0 at the beginning of a hand."
+                f"Pot is {self.curr_pot}, which should be 0 at the beginning of a hand."
             )
 
         self.community_cards.clear()
+        self.player_total_bet_this_hand.clear()
+        self.player_hand.clear()
 
         # Pass the button on
         self.dealer_idx += 1
@@ -149,7 +157,8 @@ class Game:
                 if curr_player.state == "all in":
                     player_action = "ALL IN"
 
-                self.pot += total_bet - self.player_prev_bet[curr_player]
+                self.curr_pot += total_bet - self.player_prev_bet[curr_player]
+                self.player_total_bet_this_hand[curr_player] += total_bet - self.player_prev_bet[curr_player]
                 self.player_prev_bet[curr_player] = total_bet
 
                 self.betting_history.append(
@@ -166,7 +175,7 @@ class Game:
         self.deal_players()
         self.betting(is_preflop=True)
         self.history_all_rounds["preflop"] = self.betting_history
-        return self.check_and_declare_winner()
+        return self.check_early_winner()
 
     def flop(self):
         print("==== FLOP ====")
@@ -175,7 +184,7 @@ class Game:
         self.deal_flop()
         self.betting()
         self.history_all_rounds["flop"] = self.betting_history
-        return self.check_and_declare_winner()
+        return self.check_early_winner()
 
     def turn(self):
         print("==== TURN ====")
@@ -184,7 +193,7 @@ class Game:
         self.deal_turn()
         self.betting()
         self.history_all_rounds["turn"] = self.betting_history
-        return self.check_and_declare_winner()
+        return self.check_early_winner()
 
     def river(self):
         print("==== RIVER ====")
@@ -193,20 +202,62 @@ class Game:
         self.deal_river()
         self.betting()
         self.history_all_rounds["river"] = self.betting_history
-        return self.check_and_declare_winner()
+        return self.check_early_winner()
 
-    def check_and_declare_winner(self):
+    def check_early_winner(self):
         players_in = self.players_in_current_hand()
         if len(players_in) == 1:
             winner = players_in[0]
-            print(f"Player {winner} wins the pot of {self.pot}")
-            winner.cash += self.pot
-            self.pot = 0
+            print(f"Player {winner} wins the pot of {self.curr_pot}")
+            winner.win_pot(self.curr_pot)
+            self.curr_pot = 0
             return True
         return False
 
+    def determine_hands(self):
+        for player in self.players_in_current_hand():
+            self.player_hand[player] = Hand(player.cards + self.community_cards)
+
+
+    def determine_pots(self):
+        pots = []
+        players_in_hand = set(self.players_in_current_hand())
+        while players_in_hand:
+            min_better = min(players_in_hand, key=self.player_total_bet_this_hand.get)
+            min_bet = self.player_total_bet_this_hand[min_better]
+
+            if min_bet > 0:
+                curr_pot = [0, set(players_in_hand)]
+
+                for player, bet in self.player_total_bet_this_hand.items():
+                    curr_pot[0] += min(bet, min_bet)
+                    self.player_total_bet_this_hand[player] -= min(bet, min_bet)
+
+                pots.append(curr_pot)
+        
+            players_in_hand.remove(min_better)
+
+        return pots
+    
+    def determine_pot_winners(self, pot, players):
+        best_hand = max(self.player_hand[player] for player in players)
+        winners = [p for p in players if self.player_hand[p] == best_hand]
+        if len(winners) < 1:
+            raise Exception("Should be at least 1 winner of every pot.")
+        for winner in winners:
+            print(f"{winner} wins a pot of {pot / len(winners)}")
+            winner.win_pot(pot / len(winners))
+
+        
+        
     def showdown(self):
-        pass
+        self.determine_hands()
+        pots = self.determine_pots()
+        for pot, players in pots:
+            self.determine_pot_winners(pot, players)
+        
+        self.curr_pot = 0
+
 
     def play_hand(self, shuffle=True):
         self.initialize_hand(shuffle=shuffle)
@@ -214,10 +265,8 @@ class Game:
         # Someone can win before showdown
         if any(round() for round in self.rounds):
             return
-        
-        # # Go to showdown otherwise
-        # else:
 
+        self.showdown()
 
     def add_player(self, player):
         self.players.append(player)

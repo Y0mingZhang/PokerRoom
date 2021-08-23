@@ -1,3 +1,6 @@
+from __future__ import annotations
+from functools import cached_property
+
 SUITS = ["Diamonds", "Hearts", "Clubs", "Spades"]
 DENOMS = [
     "2",
@@ -15,7 +18,7 @@ DENOMS = [
     "Ace",
 ]
 
-SUIT_EMOJI = {"Diamonds": "♦", "Hearts": "♥️", "Clubs": "♣️", "Spades": "♠️"}
+SUIT_SYMBOL = {"Diamonds": "♦", "Hearts": "♥️", "Clubs": "♣️", "Spades": "♠️"}
 
 DENOM_SHORT = {
     "2": "2",
@@ -33,6 +36,10 @@ DENOM_SHORT = {
     "Ace": "A",
 }
 
+def denom_strength(denom):
+    return DENOMS.index(denom)
+
+
 
 class Card:
     def __init__(self, suit, denom):
@@ -42,17 +49,63 @@ class Card:
             raise Exception(
                 f"Unknown denomination {denom}. Known denominations are {DENOMS}"
             )
-        self.suit = suit
-        self.denom = denom
+        self._suit = suit
+        self._denom = denom
 
+    @property
+    def suit(self):
+        return self._suit
+    
+    @property
+    def denom(self):
+        return self._denom
+    
+    @cached_property
+    def denom_view(self):
+        return CardDenomView(self.suit, self.denom, self)
+    
+    @property
+    def card_view(self):
+        return self
+    
     def __repr__(self):
-        return f"{self.denom if len(self.denom) <= 2 else self.denom[0]}{SUIT_EMOJI[self.suit]}"
+        return f"{self.denom if len(self.denom) <= 2 else self.denom[0]}{SUIT_SYMBOL[self.suit]}"
 
-    def __eq__(self, card):
+    def __eq__(self, card: Card):
         return self.suit == card.suit and self.denom == card.denom
 
-    def __gt__(self, card):
-        return DENOMS.index(self.denom) > DENOMS.index(card.denom)
     
+    def __hash__(self) -> int:
+        return hash((self.suit, self.denom))
+
+class CardDenomView(Card):
+
+    def __init__(self, suit, denom, card):
+        super().__init__(suit, denom)
+        self._card_view = card
+
+    def __eq__(self, card: CardDenomView):
+        return self.denom == card.denom
+
+    def __hash__(self) -> int:
+        return hash((self.suit, self.denom))
+
+    def __gt__(self, card):
+        return denom_strength(self.denom) > denom_strength(card.denom)
+
     def __ge__(self, card):
-        return DENOMS.index(self.denom) >= DENOMS.index(card.denom) 
+        return denom_strength(self.denom) >= denom_strength(card.denom)
+
+    def __lt__(self, card):
+        return denom_strength(self.denom) < denom_strength(card.denom)
+
+    def __le__(self, card):
+        return denom_strength(self.denom) < denom_strength(card.denom)
+    
+    @property
+    def denom_view(self):
+        return self
+
+    @property
+    def card_view(self):
+        return self._card_view
