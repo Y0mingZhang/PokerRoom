@@ -18,7 +18,7 @@ DENOMS = [
     "Ace",
 ]
 
-SUIT_SYMBOL = {"Diamonds": "♦", "Hearts": "♥️", "Clubs": "♣️", "Spades": "♠️"}
+SUIT_SYMBOL = {"Diamonds": "♦️", "Hearts": "♥️", "Clubs": "♣️", "Spades": "♠️"}
 
 DENOM_SHORT = {
     "2": "2",

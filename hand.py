@@ -33,7 +33,6 @@ class Hand:
         }
 
         self.find_ranking(cards)
-        print(f"For {cards}, the best possible hand is {self.hand} ({self.ranking})")
 
     def find_ranking(self, cards):
         cards = tuple(map(lambda c: c.denom_view, cards))

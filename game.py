@@ -1,10 +1,11 @@
 from collections import defaultdict, deque
 from deck import Deck
 from hand import Hand
+from utils import print_and_emit
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, emit_func=None):
         self.players = []
         self.inactive_players = []
         self.dealer_idx = 0
@@ -18,6 +19,8 @@ class Game:
         self.player_total_bet_this_hand = defaultdict(int)
         self.player_hand = {}
         self.rounds = [self.preflop, self.flop, self.turn, self.river]
+        self.print = print_and_emit(emit_func) if emit_func else print
+        
 
     def deal_players(self):
         assert len(self.players) >= 2
@@ -39,12 +42,14 @@ class Game:
         self.player_prev_bet[sb_player] = sb
         self.betting_history.append((sb_player.get_id(), "SB", sb))
         self.player_total_bet_this_hand[sb_player] += sb
+        self.print(f"{sb_player} has paid small blind {sb}")
 
         bb_player = self.player_at_idx(bb_idx)
         bb_player.pay_blind(bb)
         self.player_prev_bet[bb_player] = bb
         self.betting_history.append((bb_player.get_id(), "BB", bb))
         self.player_total_bet_this_hand[bb_player] += bb
+        self.print(f"{bb_player} has paid big blind {bb}")
 
         self.curr_pot += bb + sb
 
@@ -104,16 +109,19 @@ class Game:
         self.deal_one_community_card()
         self.deal_one_community_card()
         self.deal_one_community_card()
+        self.print(f"Community Cards: {self.community_cards}")
 
     def deal_turn(self):
         # Burn a card
         self.deck.pop()
         self.deal_one_community_card()
+        self.print(f"Community Cards: {self.community_cards}")
 
     def deal_river(self):
         # Burn a card
         self.deck.pop()
         self.deal_one_community_card()
+        self.print(f"Community Cards: {self.community_cards}")
 
     def betting(self, is_preflop=False):
 
@@ -147,15 +155,19 @@ class Game:
                     minimum_raise = max(minimum_raise, raise_amount)
                     player_queue = deque(self.all_players_after(curr_player))
                     player_action = "RAISE"
+                    self.print(f"{curr_player} raises to {total_bet}")
                 # It's a check / call
                 else:
                     if total_bet == self.player_prev_bet[curr_player]:
                         player_action = "CHECK"
+                        self.print(f"{curr_player} checks")
                     else:
                         player_action = "CALL"
+                        self.print(f"{curr_player} calls")
 
                 if curr_player.state == "all in":
                     player_action = "ALL IN"
+                    self.print(f"{curr_player} goes all in with {total_bet}")
 
                 self.curr_pot += total_bet - self.player_prev_bet[curr_player]
                 self.player_total_bet_this_hand[curr_player] += total_bet - self.player_prev_bet[curr_player]
@@ -164,12 +176,14 @@ class Game:
                 self.betting_history.append(
                     (curr_player.get_id(), player_action, total_bet)
                 )
+                
             else:
                 players_to_act -= 1
                 self.betting_history.append((curr_player.get_id(), "FOLD", total_bet))
+                self.print(f"{curr_player} FOLDS")
 
     def preflop(self):
-        print("==== PREFLOP ====")
+        self.print("==== PREFLOP ====")
         self.initialize_round()
         self.collect_blinds()
         self.deal_players()
@@ -178,16 +192,17 @@ class Game:
         return self.check_early_winner()
 
     def flop(self):
-        print("==== FLOP ====")
+        self.print("==== FLOP ====")
         self.initialize_round()
         # Flop: Deal, Bet
         self.deal_flop()
+
         self.betting()
         self.history_all_rounds["flop"] = self.betting_history
         return self.check_early_winner()
 
     def turn(self):
-        print("==== TURN ====")
+        self.print("==== TURN ====")
         self.initialize_round()
         # Turn: Deal, Bet
         self.deal_turn()
@@ -196,7 +211,7 @@ class Game:
         return self.check_early_winner()
 
     def river(self):
-        print("==== RIVER ====")
+        self.print("==== RIVER ====")
         self.initialize_round()
         # River: Deal, Bet
         self.deal_river()
@@ -208,7 +223,7 @@ class Game:
         players_in = self.players_in_current_hand()
         if len(players_in) == 1:
             winner = players_in[0]
-            print(f"Player {winner} wins the pot of {self.curr_pot}")
+            self.print(f"Player {winner} wins the pot of {self.curr_pot}")
             winner.win_pot(self.curr_pot)
             self.curr_pot = 0
             return True
@@ -245,7 +260,7 @@ class Game:
         if len(winners) < 1:
             raise Exception("Should be at least 1 winner of every pot.")
         for winner in winners:
-            print(f"{winner} wins a pot of {pot / len(winners)}")
+            self.print(f"{winner} wins a pot of {pot / len(winners)}")
             winner.win_pot(pot / len(winners))
 
         
