@@ -15,7 +15,7 @@ from player import HumanPlayer
 import logging
 
 log = logging.getLogger("werkzeug")
-log.setLevel(logging.ERROR)
+# log.setLevel(logging.ERROR)
 
 # Set this variable to "threading", "eventlet" or "gevent" to test the
 # different async modes, or leave it set to None for the application to choose
@@ -137,5 +137,5 @@ def message_room_event(message):
 # TODO: allow different raise sizes
 
 if __name__ == "__main__":
-    socketio.run(app)
+    socketio.run(app, host='0.0.0.0')
 
