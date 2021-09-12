@@ -282,6 +282,7 @@ class Game:
             return
 
         self.showdown()
+        
 
     def add_player(self, player):
         self.players.append(player)

@@ -10,7 +10,7 @@ from flask_socketio import (
     disconnect,
 )
 from game import Game
-from player import HumanPlayer
+from player import HumanPlayer, BotPlayer
 
 import logging
 
@@ -85,13 +85,16 @@ def join_event(message):
 def join_game_event(message):
     # TODO: handle join after game started
     curr_sid = request.sid
-
+    curr_room = session['room']
+    curr_user = session['username']
     def emit_to_player(content):
         # TODO: create separate message type for private messages
-        emit("server_game_update", {"data": content,}, to=curr_sid)
+        emit("server_game_update", {"data": content}, to=curr_sid)
 
     def emit_get_user_action(actions):
         emit("server_get_user_action", {"actions": actions}, to=curr_sid)
+        emit("server_game_update", {'data' : 'Waiting for player ' + curr_user},
+             to=curr_room, skip_sid=curr_sid)
     
     def emit_player_state(state):
         # TODO: create separate message type for private messages
@@ -105,6 +108,23 @@ def join_game_event(message):
     with rooms_lock:
         game = rooms[session["room"]]
         game.add_player(player)
+        print({"players" : str(game.players)})
+        emit('server_player_update', {"players" : 'Players in Room: ' + str(game.players)},to=session["room"])
+        if len(game.players) >= 2:
+            emit("server_enable_start_game", to=session["room"])
+
+@socketio.event
+def add_bot_event():
+    curr_sid = request.sid
+    with rooms_lock:
+        game = rooms[session["room"]]
+        game.add_player(
+            BotPlayer(str(len(game.players)),
+                players[curr_sid].cash
+            )
+        )
+        print({"players" : str(game.players)})
+        emit('server_player_update', {"players" : 'Players in Room: ' + str(game.players)},to=session["room"])
         if len(game.players) >= 2:
             emit("server_enable_start_game", to=session["room"])
 
@@ -114,8 +134,17 @@ def start_game_event(message):
     # TODO: handle multiple users starting game
     with rooms_lock:
         emit("server_start_game", to=session["room"])
+
+
+@socketio.event
+def start_hand_event():
+    with rooms_lock:
         game = rooms[session["room"]]
+        emit("server_start_hand", to=session["room"])
+        # emit("server_disable_leave_room", to=session["room"])
         game.play_hand()
+        emit("server_end_hand", to=session["room"])
+        # emit("server_enable_leave_room", to=session["room"])
 
 
 @socketio.event
