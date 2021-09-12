@@ -1,4 +1,5 @@
 from collections import defaultdict, deque
+from threading import Lock
 from deck import Deck
 from hand import Hand
 from utils import print_and_emit
@@ -20,6 +21,7 @@ class Game:
         self.player_hand = {}
         self.rounds = [self.preflop, self.flop, self.turn, self.river]
         self.print = print_and_emit(emit_func) if emit_func else print
+        self.lock = Lock()
         
 
     def deal_players(self):
@@ -286,4 +288,7 @@ class Game:
 
     def add_player(self, player):
         self.players.append(player)
+
+    def remove_player(self, player):
+        self.players.remove(player)
 

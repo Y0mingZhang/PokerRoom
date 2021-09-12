@@ -150,12 +150,12 @@
                 return false;
             });
 
-            // $('form#leave_room').submit(function(event) {
-            //     socket.emit('leave_room_event');
-            //     $('#room_area').hide();
-            //     $('#join_room').show();
-            //     return false;
-            // });
+            $('form#leave_room').submit(function(event) {
+                socket.emit('leave_room_event');
+                $('#room_area').hide();
+                $('#join_room').show();
+                return false;
+            });
 
             $('form#action_form').submit(function(event) {
                 socket.emit('submit_action_event', {
@@ -214,9 +214,9 @@
     <form id="start_hand"">
         <input type="submit" value="Play a new hand">
     </form>
-    <!-- <form id="leave_room"">
+    <form id="leave_room"">
         <input type="submit" value="Leave current room">
-    </form> -->
+    </form>
     <h2>Player Status:</h2>
     <div id="player_info"></div>
     <h2>Current Game:</h2>

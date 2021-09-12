@@ -12,6 +12,8 @@ from flask_socketio import (
     rooms,
     disconnect,
 )
+import redis
+
 from game import Game
 from player import HumanPlayer, BotPlayer
 
@@ -29,6 +31,8 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = "secret!"
 socketio = SocketIO(app, async_mode=async_mode)
 
+r = redis.Redis(host='localhost', port=6379, db=0)
+
 user_count = 0
 userid_lock = threading.Lock()
 
@@ -36,6 +40,7 @@ rooms = {}
 rooms_lock = threading.Lock()
 
 players = {}
+
 
 
 def generate_unique_userid():
@@ -54,15 +59,26 @@ def index():
 @socketio.event
 def connect(message):
     print("connect")
-    session["userid"] = generate_unique_userid()
-    emit("server_response", {"data": "You are connected :)"})
+    if "userid" not in session:
+        # session["userid"] = generate_unique_userid()
+        emit("server_response", {"data": "You are connected :)"})
+    else:
+        emit("server_response", {"data": "You are re-connected :)"})
 
 
 @socketio.event
 def set_username_event(message):
-    username = message["username"]
-    session["username"] = username
-    emit("server_response", {"data": f"Username set as {username}"})
+    session["username"] = username = message["username"]
+    if r.get(f'username:{username}:id') is None:
+        # Allocate a new id for unknown users
+        session["userid"] = generate_unique_userid()
+        r.set(f'username:{username}:id', session["userid"])
+        emit("server_response", {"data": f"Nice to see you, {username}"})
+
+    else:
+        # Match id for existing users
+        session["userid"] = r.get(f'username:{username}:id')
+        emit("server_response", {"data": f"Welcome back, {username}"})
 
 
 @socketio.event
@@ -110,6 +126,7 @@ def join_game_event(message):
 
     with rooms_lock:
         game = rooms[session["room"]]
+    with game.lock:
         game.add_player(player)
         print({"players" : str(game.players)})
         emit('server_player_update', {"players" : 'Players in Room: ' + str(game.players)},to=session["room"])
@@ -121,6 +138,8 @@ def add_bot_event():
     curr_sid = request.sid
     with rooms_lock:
         game = rooms[session["room"]]
+    
+    with game.lock:
         game.add_player(
             BotPlayer(str(len(game.players)),
                 players[curr_sid].cash
@@ -143,6 +162,7 @@ def start_game_event(message):
 def start_hand_event():
     with rooms_lock:
         game = rooms[session["room"]]
+    with game.lock:
         emit("server_start_hand", to=session["room"])
         # emit("server_disable_leave_room", to=session["room"])
         game.play_hand()
@@ -165,9 +185,22 @@ def message_room_event(message):
         to=session["room"],
     )
 
+@socketio.event
+def leave_room_event():
+    with rooms_lock:
+        game = rooms[session["room"]]
+    
+    with game.lock:
+        curr_player = players[request.sid]
+        leave_room(session['room'])
+        game.remove_player(curr_player)
+        emit('server_player_update', {"players" : 'Players in Room: ' + str(game.players)},to=session["room"])
+        if len(game.players) == 0:
+            rooms.pop(session['room'])
+        
+
 # TODO: add sit-out and timeout functions
 # TODO: allow different raise sizes
 
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=80)
-
