@@ -1,6 +1,9 @@
 <!DOCTYPE HTML>
 <html>
-
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap');
+        body {font-family: 'Roboto Slab', serif;}
+    </style>
 <head>
     <style>
         .invisible { display: none; }
@@ -38,11 +41,26 @@
 
             socket.on('server_start_game', function(msg) {
                 $('#start_game').hide();
+                $('#join_game_waiting_area').hide();
                 $('#hand_area').show();
             });
+            
+
+
+            // socket.on('server_enable_leave_room', function(msg) {
+            //     $('#leave_room').show();
+            // });
+
+            // socket.on('server_disable_leave_room', function(msg) {
+            //     $('#leave_room').hide();
+            // });
 
             socket.on('server_game_update', function(msg) {
-                $('#hand_area').append('<br>' + $('<div/>').text(msg.data).html());
+                $('#hand_info').append('<br>' + $('<div/>').text(msg.data).html());
+            });
+    
+            socket.on('server_player_update', function(msg) {
+                $('#player_in_current_room').html(msg['players'])
             });
 
             socket.on('server_get_user_action', function(msg) {
@@ -59,14 +77,38 @@
                 });
             });
 
+            socket.on('server_start_hand', function(msg) {
+                $('#hand_info').empty();
+                $('#start_hand').hide();
+            });
+
+            socket.on('server_end_hand', function(msg) {
+                $('#hand_info').append('<br>' + $('<div/>').text("===== END OF HAND =====").html());
+                $('#start_hand').show();
+            });
+            
+            function is_empty_field(input) {
+                return !(input.trim().length)
+            }
+
             $('form#set_username').submit(function(event) {
+                
+                if (is_empty_field($('#username').val())) {
+                    $('#username_error').html('Invalid username')
+                    return false;
+                }
+
                 socket.emit('set_username_event', {username: $('#username').val()});
                 $('#set_username').hide();
                 $('#join_room').show();
                 return false;
             });
-
+            
             $('form#join_room').submit(function(event) {
+                if (is_empty_field($('#join_room_id').val())) {
+                    $('#join_room_error').html('Invalid Room ID')
+                    return false;
+                }
                 socket.emit('join_event', {room: $('#join_room_id').val()});
                 $('#room_id').html('Room ' + $('#join_room_id').val());
                 $('#join_room').hide();
@@ -85,16 +127,35 @@
             });
 
             $('form#join_game').submit(function(event) {
+                if (!(Number($('#starting_chip').val()) > 0)) {
+                    $('#join_game_error').html('Invalid starting chip');
+                    return false;
+                }
                 socket.emit('join_game_event', {cash: $('#starting_chip').val()});
                 $('#join_game').hide();
+                $('#join_game_waiting_area').show();
                 return false;
             });
 
             $('form#start_game').submit(function(event) {
                 socket.emit('start_game_event', {cash: $('#starting_chip').val()});
+                $('#join_game_waiting_area').hide();
                 $('#start_game').hide();
                 return false;
             });
+
+            $('form#start_hand').submit(function(event) {
+                socket.emit('start_hand_event');
+                $('#start_hand').hide();
+                return false;
+            });
+
+            // $('form#leave_room').submit(function(event) {
+            //     socket.emit('leave_room_event');
+            //     $('#room_area').hide();
+            //     $('#join_room').show();
+            //     return false;
+            // });
 
             $('form#action_form').submit(function(event) {
                 socket.emit('submit_action_event', {
@@ -105,20 +166,10 @@
                 return false;
             });
 
-            // $('form#leave').submit(function(event) {
-            //     socket.emit('leave', {room: $('#leave_room').val()});
-            //     return false;
-            // });
-
-            
-            // $('form#close').submit(function(event) {
-            //     socket.emit('close_room', {room: $('#close_room').val()});
-            //     return false;
-            // });
-            // $('form#disconnect').submit(function(event) {
-            //     socket.emit('disconnect_request');
-            //     return false;
-            // });
+            $('form#add_bot').submit(function(event) {
+                socket.emit('add_bot_event');
+                return false;
+            });
         });
     </script>
 </head>
@@ -127,35 +178,48 @@
     <form id="set_username" method="POST" action='#'>
         <input type="text" name="username" id="username" placeholder="Your username here">
         <input type="submit" value="Set Username">
+        <p id="username_error"></p>
     </form>
     
     <form id="join_room" method="POST" action='#' class="invisible">
         <input type="text" name="join_room_id" id="join_room_id" placeholder="Room Name">
         <input type="submit" value="Join / Create Room">
+        <p id="join_room_error"></p>
     </form>
     
 
     <div id="room_area" class="invisible"> 
     <h2 id="room_id"></h2>
-    <!-- <form id="leave" method="POST" action='#'>
-        <input type="text" name="leave_room" id="leave_room" placeholder="Room Name">
-        <input type="submit" value="Leave Room">
-    </form> -->
+    <p id="player_in_current_room"></p>
     <form id="send_room" method="POST" action='#'>
         <input type="text" name="room_data" id="room_data" placeholder="Message">
         <input type="submit" value="Send to Room">
     </form>
     <form id="join_game" method="POST" action='#'>
-        <input type="text" name="starting_chip" id="starting_chip" placeholder="100">
+        <input type="text" name="starting_chip" id="starting_chip" placeholder="starting chips">
+        <br>
         <input type="submit" value="Join Game">
+        <p id="join_game_error"></p>
     </form>
+    <div id="join_game_waiting_area" class="invisible">
+        <p>Game can start after two players have joined.</p>
+        <form id="add_bot" method="POST" action='#'>
+            <input type="submit" value="Add a bot into the game">
+        </form>
+    </div>
     <form id="start_game" method="POST" action='#' class="invisible">
         <input type="submit" value="Start Game">
     </form>
     <div id="hand_area" class="invisible">
-    <h2>Current Game:</h2>
+    <form id="start_hand"">
+        <input type="submit" value="Play a new hand">
+    </form>
+    <!-- <form id="leave_room"">
+        <input type="submit" value="Leave current room">
+    </form> -->
+    <h2>Player Status:</h2>
     <div id="player_info"></div>
-    
+    <h2>Current Game:</h2>
     <form id="action_form" class="invisible">
     Choose an action:
     <select id="action_menu"></select>
@@ -163,8 +227,8 @@
     </form>
     </div>
     </div>
-    
-    
+    <div id="hand_info"></div>
+
     <div id="log">
         <h2>Received Messages:</h2>
     </div>
