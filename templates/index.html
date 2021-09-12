@@ -58,8 +58,18 @@
                     $('#player_info').append('<p>' + key + ':' + value + '</p>');
                 });
             });
+            
+            function is_empty_field(input) {
+                return !(input.trim().length)
+            }
 
             $('form#set_username').submit(function(event) {
+                
+                if (is_empty_field($('#username').val())) {
+                    $('#username_error').html('Invalid username')
+                    return false;
+                }
+
                 socket.emit('set_username_event', {username: $('#username').val()});
                 $('#set_username').hide();
                 $('#join_room').show();
@@ -67,6 +77,10 @@
             });
 
             $('form#join_room').submit(function(event) {
+                if (is_empty_field($('#join_room_id').val())) {
+                    $('#join_room_error').html('Invalid Room ID')
+                    return false;
+                }
                 socket.emit('join_event', {room: $('#join_room_id').val()});
                 $('#room_id').html('Room ' + $('#join_room_id').val());
                 $('#join_room').hide();
@@ -85,6 +99,10 @@
             });
 
             $('form#join_game').submit(function(event) {
+                if (!(Number($('#starting_chip').val()) > 0)) {
+                    $('#join_game_error').html('Invalid starting chip');
+                    return false;
+                }
                 socket.emit('join_game_event', {cash: $('#starting_chip').val()});
                 $('#join_game').hide();
                 return false;
@@ -127,11 +145,13 @@
     <form id="set_username" method="POST" action='#'>
         <input type="text" name="username" id="username" placeholder="Your username here">
         <input type="submit" value="Set Username">
+        <p id="username_error"></p>
     </form>
     
     <form id="join_room" method="POST" action='#' class="invisible">
         <input type="text" name="join_room_id" id="join_room_id" placeholder="Room Name">
         <input type="submit" value="Join / Create Room">
+        <p id="join_room_error"></p>
     </form>
     
 
@@ -146,16 +166,18 @@
         <input type="submit" value="Send to Room">
     </form>
     <form id="join_game" method="POST" action='#'>
-        <input type="text" name="starting_chip" id="starting_chip" placeholder="100">
+        <input type="text" name="starting_chip" id="starting_chip" placeholder="starting chips">
+        <br>
         <input type="submit" value="Join Game">
+        <p id="join_game_error"></p>
     </form>
     <form id="start_game" method="POST" action='#' class="invisible">
         <input type="submit" value="Start Game">
     </form>
     <div id="hand_area" class="invisible">
-    <h2>Current Game:</h2>
+    <h2>Player Status:</h2>
     <div id="player_info"></div>
-    
+    <h2>Current Game:</h2>
     <form id="action_form" class="invisible">
     Choose an action:
     <select id="action_menu"></select>
@@ -163,8 +185,6 @@
     </form>
     </div>
     </div>
-    
-    
     <div id="log">
         <h2>Received Messages:</h2>
     </div>
